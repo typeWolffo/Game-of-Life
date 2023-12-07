@@ -6,64 +6,16 @@ use piston::window::WindowSettings;
 use rand::Rng;
 
 const CELL_SIZE: f64 = 5.0;
-const GRID_SIZE: usize = 300;
+const GRID_SIZE: usize = 256; // window size / cell size = 128
 
 pub struct App {
     gl: GlGraphics,
     board: Vec<Vec<bool>>,
 }
 
-impl App {
-    fn render(&mut self, args: &RenderArgs) {
-        use graphics::*;
-
-        const ALIVE: [f32; 4] = [0.0, 0.8, 0.0, 1.0]; // Green
-        const DEAD: [f32; 4] = [0.0, 0.0, 0.0, 1.0]; // Black
-
-        self.gl.draw(args.viewport(), |c, gl| {
-            clear([1.0; 4], gl);
-
-            for i in 0..GRID_SIZE {
-                for j in 0..GRID_SIZE {
-                    let x = j as f64 * CELL_SIZE;
-                    let y = i as f64 * CELL_SIZE;
-                    let square = rectangle::square(0.0, 0.0, CELL_SIZE);
-                    let color = if self.board[i][j] { ALIVE } else { DEAD };
-                    rectangle(color, square, c.transform.trans(x, y), gl);
-                }
-            }
-        });
-    }
-
-    fn update(&mut self, _args: &UpdateArgs) {
-        self.board = next_board_state(&self.board);
-    }
-}
-
-fn main() {
-    let opengl = OpenGL::V3_2;
-
-    let mut window: Window = WindowSettings::new("Game of Life", [1280, 1280])
-        .graphics_api(opengl)
-        .exit_on_esc(true)
-        .build()
-        .unwrap();
-
-    let mut app = App {
-        gl: GlGraphics::new(opengl),
-        board: initialize_board(GRID_SIZE, GRID_SIZE),
-    };
-
-    let mut events = Events::new(EventSettings::new());
-    while let Some(e) = events.next(&mut window) {
-        if let Some(args) = e.render_args() {
-            app.render(&args);
-        }
-
-        if let Some(args) = e.update_args() {
-            app.update(&args);
-        }
-    }
+fn color_based_on_neighbors(live_neighbors: usize) -> [f32; 4] {
+    let green_intensity = live_neighbors as f32 / 8.0;
+    [0.0, green_intensity, 0.5, 1.0]
 }
 
 fn initialize_board(rows: usize, cols: usize) -> Vec<Vec<bool>> {
@@ -104,4 +56,62 @@ fn count_live_neighbors(y: usize, x: usize, board: &Vec<Vec<bool>>) -> usize {
         }
     }
     count
+}
+
+impl App {
+    fn render(&mut self, args: &RenderArgs) {
+        use graphics::*;
+
+        const DEAD: [f32; 4] = [0.0, 0.0, 0.0, 1.0]; // Black
+
+        self.gl.draw(args.viewport(), |c, gl| {
+            clear([1.0; 4], gl);
+
+            for i in 0..GRID_SIZE {
+                for j in 0..GRID_SIZE {
+                    let x = j as f64 * CELL_SIZE;
+                    let y = i as f64 * CELL_SIZE;
+                    let square = rectangle::square(0.0, 0.0, CELL_SIZE);
+
+                    let live_neighbors = count_live_neighbors(i, j, &self.board);
+                    let color = if self.board[i][j] {
+                        color_based_on_neighbors(live_neighbors)
+                    } else {
+                        DEAD
+                    };
+
+                    rectangle(color, square, c.transform.trans(x, y), gl);
+                }
+            }
+        });
+    }
+
+    fn update(&mut self, _args: &UpdateArgs) {
+        self.board = next_board_state(&self.board);
+    }
+}
+fn main() {
+    let opengl = OpenGL::V3_2;
+
+    let mut window: Window = WindowSettings::new("Game of Life", [1280, 1280])
+        .graphics_api(opengl)
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+
+    let mut app = App {
+        gl: GlGraphics::new(opengl),
+        board: initialize_board(GRID_SIZE, GRID_SIZE),
+    };
+
+    let mut events = Events::new(EventSettings::new());
+    while let Some(e) = events.next(&mut window) {
+        if let Some(args) = e.render_args() {
+            app.render(&args);
+        }
+
+        if let Some(args) = e.update_args() {
+            app.update(&args);
+        }
+    }
 }
